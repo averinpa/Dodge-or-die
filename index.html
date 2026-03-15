@@ -302,6 +302,10 @@ function startTracking() {
       }
     }
 
+    // Amplify movement from center (1.8x)
+    faceX = Math.max(0, Math.min(1, 0.5 + (faceX - 0.5) * 1.8));
+    faceY = Math.max(0, Math.min(1, 0.5 + (faceY - 0.5) * 1.8));
+
     // Update crosshair
     crosshair.style.left = (faceX * window.innerWidth) + 'px';
     crosshair.style.top = (faceY * window.innerHeight) + 'px';
@@ -397,10 +401,10 @@ function spawnGun() {
 }
 
 function checkDodge(gunSide) {
-  // Gun on left -> dodge right (faceX > 0.65)
-  // Gun on right -> dodge left (faceX < 0.35)
-  if (gunSide === 'left') return faceX > 0.65;
-  return faceX < 0.35;
+  // Gun on left -> dodge right (faceX > 0.58)
+  // Gun on right -> dodge left (faceX < 0.42)
+  if (gunSide === 'left') return faceX > 0.58;
+  return faceX < 0.42;
 }
 
 function onDodge() {
