@@ -370,6 +370,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
     <button class="menu-btn" id="btn-camera" onclick="enableCamera()">ENABLE CAMERA</button>
     <button class="menu-btn" id="btn-start" onclick="startCountdown()" style="display:none">START GAME</button>
     <div id="camera-status"></div>
+    <div style="margin-top:16px;font-size:0.7rem;color:#555">Drop your .wav/.mp3 files into a <code>sounds/</code> folder to replace any sound</div>
   </div>
 
   <!-- Round transition -->
@@ -396,6 +397,322 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
 </div>
 
 <script>
+// ==================== SOUND ENGINE ====================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Custom audio file cache: load from sounds/ folder, overrides synth
+const customSounds = {};
+const SOUND_NAMES = ['gunshot','laser','dodge','hit','combo','countdown','round_transition','gameover','monster_roar','aim_warning'];
+
+// Try loading custom audio files
+function loadCustomSounds() {
+  SOUND_NAMES.forEach(name => {
+    ['mp3','wav','ogg'].forEach(ext => {
+      if (customSounds[name]) return;
+      const audio = new Audio();
+      audio.src = 'sounds/' + name + '.' + ext;
+      audio.addEventListener('canplaythrough', () => {
+        customSounds[name] = audio.src;
+      }, { once: true });
+      // Silently fail if file doesn't exist
+      audio.addEventListener('error', () => {}, { once: true });
+      audio.load();
+    });
+  });
+}
+
+function playCustom(name, volume) {
+  if (customSounds[name]) {
+    const a = new Audio(customSounds[name]);
+    a.volume = volume || 0.5;
+    a.play().catch(() => {});
+    return true;
+  }
+  return false;
+}
+
+// ---- Synthesized sounds (defaults) ----
+
+function playGunshot() {
+  ensureAudio();
+  if (playCustom('gunshot', 0.6)) return;
+  const t = audioCtx.currentTime;
+  // Noise burst for gunshot
+  const bufferSize = audioCtx.sampleRate * 0.15;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+  }
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  // Low-pass for body
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(3000, t);
+  lp.frequency.exponentialRampToValueAtTime(200, t + 0.15);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.7, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+  noise.connect(lp).connect(gain).connect(audioCtx.destination);
+  noise.start(t);
+  noise.stop(t + 0.2);
+  // Thump
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+  const g2 = audioCtx.createGain();
+  g2.gain.setValueAtTime(0.8, t);
+  g2.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+  osc.connect(g2).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+function playLaser() {
+  ensureAudio();
+  if (playCustom('laser', 0.6)) return;
+  const t = audioCtx.currentTime;
+  // Descending saw for laser zap
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(2000, t);
+  osc.frequency.exponentialRampToValueAtTime(100, t + 0.4);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.4, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+  // Distortion
+  const dist = audioCtx.createWaveShaperFunction ? null : audioCtx.createWaveShaper();
+  if (dist) {
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = Math.tanh(x * 3);
+    }
+    dist.curve = curve;
+    osc.connect(dist).connect(gain).connect(audioCtx.destination);
+  } else {
+    osc.connect(gain).connect(audioCtx.destination);
+  }
+  osc.start(t);
+  osc.stop(t + 0.4);
+  // High sizzle
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'square';
+  osc2.frequency.setValueAtTime(4000, t);
+  osc2.frequency.exponentialRampToValueAtTime(800, t + 0.2);
+  const g2 = audioCtx.createGain();
+  g2.gain.setValueAtTime(0.15, t);
+  g2.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+  osc2.connect(g2).connect(audioCtx.destination);
+  osc2.start(t);
+  osc2.stop(t + 0.25);
+}
+
+function playDodge() {
+  ensureAudio();
+  if (playCustom('dodge', 0.5)) return;
+  const t = audioCtx.currentTime;
+  // Rising pleasant tone
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(400, t);
+  osc.frequency.exponentialRampToValueAtTime(800, t + 0.12);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.3, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.2);
+  // Second note
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(600, t + 0.08);
+  osc2.frequency.exponentialRampToValueAtTime(1200, t + 0.2);
+  const g2 = audioCtx.createGain();
+  g2.gain.setValueAtTime(0.25, t + 0.08);
+  g2.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+  osc2.connect(g2).connect(audioCtx.destination);
+  osc2.start(t + 0.08);
+  osc2.stop(t + 0.3);
+}
+
+function playHit() {
+  ensureAudio();
+  if (playCustom('hit', 0.7)) return;
+  const t = audioCtx.currentTime;
+  // Heavy impact
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(20, t + 0.3);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.8, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.35);
+  // Crunch noise
+  const bufferSize = audioCtx.sampleRate * 0.1;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const g2 = audioCtx.createGain();
+  g2.gain.setValueAtTime(0.5, t);
+  g2.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+  noise.connect(g2).connect(audioCtx.destination);
+  noise.start(t);
+  noise.stop(t + 0.1);
+}
+
+function playCombo() {
+  ensureAudio();
+  if (playCustom('combo', 0.4)) return;
+  const t = audioCtx.currentTime;
+  // Sparkle arpeggio
+  [600, 800, 1000, 1200].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.2, t + i * 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.06 + 0.15);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t + i * 0.06);
+    osc.stop(t + i * 0.06 + 0.15);
+  });
+}
+
+function playCountdown() {
+  ensureAudio();
+  if (playCustom('countdown', 0.5)) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.value = 440;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.25, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.15);
+}
+
+function playRoundTransition() {
+  ensureAudio();
+  if (playCustom('round_transition', 0.6)) return;
+  const t = audioCtx.currentTime;
+  // Dramatic brass-like chord
+  [220, 330, 440, 550].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.linearRampToValueAtTime(0.2, t + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1200;
+    osc.connect(lp).connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 1.5);
+  });
+}
+
+function playGameover() {
+  ensureAudio();
+  if (playCustom('gameover', 0.6)) return;
+  const t = audioCtx.currentTime;
+  // Sad descending tones
+  [440, 370, 311, 220].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.3, t + i * 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.25 + 0.4);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t + i * 0.25);
+    osc.stop(t + i * 0.25 + 0.4);
+  });
+}
+
+function playMonsterRoar() {
+  ensureAudio();
+  if (playCustom('monster_roar', 0.7)) return;
+  const t = audioCtx.currentTime;
+  // Deep growl with noise
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(80, t);
+  osc.frequency.linearRampToValueAtTime(60, t + 0.8);
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 20;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 30;
+  lfo.connect(lfoGain).connect(osc.frequency);
+  lfo.start(t);
+  lfo.stop(t + 0.8);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.5, t);
+  gain.gain.linearRampToValueAtTime(0.6, t + 0.2);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 400;
+  osc.connect(lp).connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.8);
+  // Noise layer
+  const bufferSize = audioCtx.sampleRate * 0.6;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(0.2, t);
+  ng.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 200;
+  bp.Q.value = 2;
+  noise.connect(bp).connect(ng).connect(audioCtx.destination);
+  noise.start(t);
+  noise.stop(t + 0.6);
+}
+
+function playAimWarning() {
+  ensureAudio();
+  if (playCustom('aim_warning', 0.3)) return;
+  const t = audioCtx.currentTime;
+  // Quick warning blip
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = 880;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.2, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.08);
+}
+
+// Try loading custom sounds on page load
+loadCustomSounds();
+
+// ==================== GAME STATE ====================
+
 // State
 let stream = null;
 let faceDetector = null;
@@ -539,6 +856,7 @@ function startCountdown() {
 
   let c = 3;
   cn.textContent = c;
+  playCountdown();
 
   const ci = setInterval(() => {
     c--;
@@ -547,6 +865,7 @@ function startCountdown() {
       cn.style.animation = 'none';
       void cn.offsetWidth;
       cn.style.animation = 'countPulse 0.8s ease-out';
+      playCountdown();
     } else {
       clearInterval(ci);
       cs.style.display = 'none';
@@ -578,6 +897,8 @@ function showRoundTransition(roundNum, callback) {
   title.style.animation = 'none';
   void title.offsetWidth;
   title.style.animation = 'roundSlam 0.8s ease-out';
+  playRoundTransition();
+  if (roundNum === 2) setTimeout(() => playMonsterRoar(), 600);
 
   setTimeout(() => {
     rs.style.display = 'none';
@@ -658,6 +979,7 @@ function spawnGun() {
   indicator.className = currentGunSide;
   indicator.textContent = currentGunSide === 'left' ? '<<< DODGE RIGHT >>>' : '<<< DODGE LEFT >>>';
   indicator.style.opacity = '1';
+  playAimWarning();
 
   if (currentRound === 1) {
     cowboy.classList.remove('idle');
@@ -703,6 +1025,8 @@ function onDodge() {
   }
 
   showFloatingText('+' + pts, '#22c55e');
+  playDodge();
+  if (combo > 2) playCombo();
   hideAim();
 
   // Check if player reached round 2 threshold
@@ -748,6 +1072,7 @@ function fireGun(side) {
     void cowboy.offsetWidth;
     cowboy.classList.add('shoot-' + side);
 
+    playGunshot();
     // Muzzle flash
     const flash = document.querySelector(side === 'left' ? '.left-flash' : '.right-flash');
     flash.style.opacity = '1';
@@ -758,6 +1083,7 @@ function fireGun(side) {
     void monster.offsetWidth;
     monster.classList.add('shoot-' + side);
 
+    playLaser();
     const laser = document.getElementById('laser-' + side);
     laser.classList.remove('firing');
     void laser.offsetWidth;
@@ -791,6 +1117,7 @@ function fireGun(side) {
   lives--;
   document.getElementById('life' + lives).classList.add('lost');
   showFloatingText(currentRound === 2 ? 'BLASTED!' : 'HIT!', '#e81224');
+  playHit();
   hideAim();
 
   if (lives <= 0) {
@@ -854,6 +1181,7 @@ function endGame(died) {
   document.getElementById('final-score').textContent = score;
   document.getElementById('best-score').textContent = 'BEST: ' + best;
   go.style.display = 'flex';
+  playGameover();
 }
 
 function restartGame() {
