@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>DODGE OR DIE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;font-family:system-ui,-apple-system,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+#game-container{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+
+/* Film grain overlay */
+#grain{position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:0.04}
+
+/* Camera preview */
+#cam-preview{position:fixed;bottom:10px;right:10px;width:100px;height:75px;border-radius:8px;border:1px solid rgba(232,18,36,0.4);opacity:0.7;z-index:100;object-fit:cover;transform:scaleX(-1)}
+#cam-canvas{display:none}
+
+/* Crosshair */
+#crosshair{position:fixed;width:30px;height:30px;pointer-events:none;z-index:90;transform:translate(-50%,-50%);opacity:0.7;transition:left 0.08s linear,top 0.08s linear}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;z-index:80;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent);font-weight:700}
+#score{font-size:1.4rem;color:#ffd700;text-shadow:0 0 10px rgba(255,215,0,0.5)}
+#timer{font-size:1.2rem;color:#e81224;text-shadow:0 0 8px rgba(232,18,36,0.4)}
+#lives{display:flex;gap:6px}
+.life-dot{width:14px;height:14px;border-radius:50%;background:#e81224;box-shadow:0 0 8px rgba(232,18,36,0.6);transition:all 0.3s}
+.life-dot.lost{background:#333;box-shadow:none}
+#combo-display{position:fixed;top:60px;left:50%;transform:translateX(-50%);font-size:1.1rem;font-weight:900;color:#ffd700;text-shadow:0 0 12px rgba(255,215,0,0.6);z-index:80;opacity:0;transition:opacity 0.3s}
+
+/* Gun containers */
+#gun-left,#gun-right{position:fixed;top:50%;transform:translateY(-50%);z-index:70;transition:opacity 0.15s}
+#gun-left{left:-120px}
+#gun-right{right:-120px}
+#gun-left.active{left:10px}
+#gun-right.active{right:10px}
+#gun-right svg{transform:scaleX(-1)}
+
+/* Muzzle flash */
+.muzzle-flash{position:fixed;top:50%;transform:translateY(-50%);z-index:71;opacity:0;pointer-events:none}
+.muzzle-flash.left-flash{left:100px}
+.muzzle-flash.right-flash{right:100px}
+
+/* Screen flash on fire */
+#screen-flash{position:fixed;inset:0;z-index:75;pointer-events:none;opacity:0}
+
+/* Damage effect */
+#damage-overlay{position:fixed;inset:0;z-index:74;pointer-events:none;opacity:0;border:4px solid #e81224;box-shadow:inset 0 0 80px rgba(232,18,36,0.5)}
+
+/* Dodge text floating */
+.dodge-text{position:fixed;top:40%;left:50%;transform:translateX(-50%);font-size:2rem;font-weight:900;color:#22c55e;text-shadow:0 0 15px rgba(34,197,94,0.6);z-index:85;pointer-events:none;animation:floatUp 0.8s ease-out forwards}
+@keyframes floatUp{0%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-80px) scale(1.3)}}
+
+/* Screen shake */
+@keyframes shake{0%,100%{transform:translate(0)}10%{transform:translate(-8px,4px)}20%{transform:translate(6px,-6px)}30%{transform:translate(-4px,8px)}40%{transform:translate(8px,-4px)}50%{transform:translate(-6px,2px)}60%{transform:translate(4px,-8px)}70%{transform:translate(-2px,6px)}80%{transform:translate(6px,4px)}90%{transform:translate(-4px,-2px)}}
+.shaking{animation:shake 0.5s ease-in-out}
+
+/* Damage pulse */
+@keyframes damagePulse{0%{opacity:0.9}100%{opacity:0}}
+
+/* Menu screen */
+#menu-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;background:#0a0a0b;padding:20px;text-align:center}
+#menu-screen h1{font-size:2.8rem;font-weight:900;color:#e81224;text-shadow:0 0 30px rgba(232,18,36,0.6),0 0 60px rgba(232,18,36,0.3);letter-spacing:4px;margin-bottom:4px}
+#menu-screen h2{font-size:1rem;font-weight:700;color:#666;letter-spacing:8px;margin-bottom:24px}
+#menu-screen p{font-size:0.85rem;color:#888;max-width:300px;line-height:1.5;margin-bottom:30px}
+.menu-btn{background:#e81224;color:#fff;border:none;padding:14px 40px;font-size:1.1rem;font-weight:900;border-radius:8px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;box-shadow:0 0 20px rgba(232,18,36,0.4);transition:all 0.2s}
+.menu-btn:active{transform:scale(0.96);box-shadow:0 0 30px rgba(232,18,36,0.6)}
+.menu-btn:disabled{background:#333;box-shadow:none;color:#666}
+#camera-status{font-size:0.75rem;color:#666;margin-top:12px;min-height:20px}
+
+/* Countdown */
+#countdown-screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:190;background:rgba(10,10,11,0.9)}
+#countdown-num{font-size:8rem;font-weight:900;color:#e81224;text-shadow:0 0 40px rgba(232,18,36,0.6);animation:countPulse 0.8s ease-out}
+@keyframes countPulse{0%{transform:scale(2);opacity:0}30%{opacity:1}100%{transform:scale(1);opacity:1}}
+
+/* Game Over */
+#gameover-screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;background:rgba(10,10,11,0.95);padding:20px;text-align:center}
+#gameover-screen h1{font-size:2.4rem;font-weight:900;color:#e81224;text-shadow:0 0 30px rgba(232,18,36,0.6);margin-bottom:8px}
+#gameover-screen .sub{font-size:0.9rem;color:#888;margin-bottom:30px}
+#final-score{font-size:3.5rem;font-weight:900;color:#ffd700;text-shadow:0 0 20px rgba(255,215,0,0.5);margin-bottom:4px}
+#final-score-label{font-size:0.8rem;color:#888;letter-spacing:4px;margin-bottom:20px}
+#best-score{font-size:1rem;color:#666;margin-bottom:30px}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <!-- Film grain -->
+  <canvas id="grain" width="256" height="256"></canvas>
+
+  <!-- Camera -->
+  <video id="cam-preview" autoplay playsinline muted></video>
+  <canvas id="cam-canvas" width="160" height="120"></canvas>
+
+  <!-- Crosshair -->
+  <svg id="crosshair" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="15" cy="15" r="10" stroke="#e81224" stroke-width="1.5" opacity="0.8"/>
+    <circle cx="15" cy="15" r="3" fill="#e81224" opacity="0.6"/>
+    <line x1="15" y1="0" x2="15" y2="8" stroke="#e81224" stroke-width="1" opacity="0.5"/>
+    <line x1="15" y1="22" x2="15" y2="30" stroke="#e81224" stroke-width="1" opacity="0.5"/>
+    <line x1="0" y1="15" x2="8" y2="15" stroke="#e81224" stroke-width="1" opacity="0.5"/>
+    <line x1="22" y1="15" x2="30" y2="15" stroke="#e81224" stroke-width="1" opacity="0.5"/>
+  </svg>
+
+  <!-- HUD -->
+  <div id="hud" style="display:none">
+    <div id="score">0</div>
+    <div id="lives">
+      <div class="life-dot" id="life0"></div>
+      <div class="life-dot" id="life1"></div>
+      <div class="life-dot" id="life2"></div>
+    </div>
+    <div id="timer">30</div>
+  </div>
+  <div id="combo-display"></div>
+
+  <!-- Guns -->
+  <div id="gun-left">
+    <svg width="100" height="70" viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg">
+      <rect x="30" y="18" width="70" height="16" rx="2" fill="#555" stroke="#333" stroke-width="1"/>
+      <rect x="85" y="15" width="15" height="22" rx="1" fill="#666" stroke="#333" stroke-width="1"/>
+      <rect x="28" y="30" width="30" height="35" rx="3" fill="#444" stroke="#333" stroke-width="1"/>
+      <rect x="32" y="32" width="22" height="28" rx="2" fill="#3a3a3a"/>
+      <rect x="45" y="34" width="3" height="14" rx="1" fill="#555"/>
+      <rect x="30" y="14" width="12" height="8" rx="1" fill="#666"/>
+      <rect x="95" y="20" width="5" height="12" rx="1" fill="#777"/>
+    </svg>
+  </div>
+  <div id="gun-right">
+    <svg width="100" height="70" viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="18" width="70" height="16" rx="2" fill="#555" stroke="#333" stroke-width="1"/>
+      <rect x="0" y="15" width="15" height="22" rx="1" fill="#666" stroke="#333" stroke-width="1"/>
+      <rect x="42" y="30" width="30" height="35" rx="3" fill="#444" stroke="#333" stroke-width="1"/>
+      <rect x="46" y="32" width="22" height="28" rx="2" fill="#3a3a3a"/>
+      <rect x="52" y="34" width="3" height="14" rx="1" fill="#555"/>
+      <rect x="58" y="14" width="12" height="8" rx="1" fill="#666"/>
+      <rect x="0" y="20" width="5" height="12" rx="1" fill="#777"/>
+    </svg>
+  </div>
+
+  <!-- Muzzle flash -->
+  <svg class="muzzle-flash left-flash" width="80" height="80" viewBox="0 0 80 80">
+    <circle cx="40" cy="40" r="35" fill="#e81224" opacity="0.7"/>
+    <circle cx="40" cy="40" r="22" fill="#ff6600" opacity="0.8"/>
+    <circle cx="40" cy="40" r="10" fill="#fff" opacity="0.9"/>
+  </svg>
+  <svg class="muzzle-flash right-flash" width="80" height="80" viewBox="0 0 80 80">
+    <circle cx="40" cy="40" r="35" fill="#e81224" opacity="0.7"/>
+    <circle cx="40" cy="40" r="22" fill="#ff6600" opacity="0.8"/>
+    <circle cx="40" cy="40" r="10" fill="#fff" opacity="0.9"/>
+  </svg>
+
+  <!-- Screen flash -->
+  <div id="screen-flash"></div>
+  <!-- Damage overlay -->
+  <div id="damage-overlay"></div>
+
+  <!-- Menu -->
+  <div id="menu-screen">
+    <h1>DODGE OR DIE</h1>
+    <h2>REFLEX GAME</h2>
+    <p>Use your front camera to dodge incoming gunfire. Move your head left or right to survive!</p>
+    <button class="menu-btn" id="btn-camera" onclick="enableCamera()">ENABLE CAMERA</button>
+    <button class="menu-btn" id="btn-start" onclick="startCountdown()" style="display:none">START GAME</button>
+    <div id="camera-status"></div>
+  </div>
+
+  <!-- Countdown -->
+  <div id="countdown-screen">
+    <div id="countdown-num"></div>
+  </div>
+
+  <!-- Game Over -->
+  <div id="gameover-screen">
+    <h1 id="gameover-title">YOU DIED</h1>
+    <div class="sub" id="gameover-sub"></div>
+    <div id="final-score-label">FINAL SCORE</div>
+    <div id="final-score">0</div>
+    <div id="best-score"></div>
+    <button class="menu-btn" onclick="restartGame()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// State
+let stream = null;
+let faceDetector = null;
+let useFallback = false;
+let faceX = 0.5, faceY = 0.5;
+let trackingRAF = null;
+
+let score = 0, lives = 3, combo = 0, timeLeft = 30;
+let gunInterval = 2200;
+let gunTimer = null, gameTimerInterval = null;
+let currentGunSide = null; // 'left' or 'right'
+let gunTimeout = null;
+let gameActive = false;
+
+const video = document.getElementById('cam-preview');
+const canvas = document.getElementById('cam-canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const crosshair = document.getElementById('crosshair');
+
+// Film grain
+(function initGrain() {
+  const gc = document.getElementById('grain');
+  const gctx = gc.getContext('2d');
+  const img = gctx.createImageData(256, 256);
+  function drawGrain() {
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random() * 255;
+      img.data[i] = img.data[i+1] = img.data[i+2] = v;
+      img.data[i+3] = 255;
+    }
+    gctx.putImageData(img, 0, 0);
+    requestAnimationFrame(drawGrain);
+  }
+  drawGrain();
+})();
+
+// Camera
+async function enableCamera() {
+  const btn = document.getElementById('btn-camera');
+  const status = document.getElementById('camera-status');
+  btn.disabled = true;
+  status.textContent = 'Requesting camera access...';
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+
+    // Try native FaceDetector
+    if ('FaceDetector' in window) {
+      try {
+        faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+        await faceDetector.detect(video); // test it
+        useFallback = false;
+        status.textContent = 'Camera ready (native face detection)';
+      } catch {
+        faceDetector = null;
+        useFallback = true;
+        status.textContent = 'Camera ready (color-based tracking)';
+      }
+    } else {
+      useFallback = true;
+      status.textContent = 'Camera ready (color-based tracking)';
+    }
+
+    btn.style.display = 'none';
+    document.getElementById('btn-start').style.display = '';
+    startTracking();
+  } catch (e) {
+    status.textContent = 'Camera error: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+// Face tracking
+function startTracking() {
+  async function track() {
+    if (!stream) return;
+
+    if (faceDetector && !useFallback) {
+      try {
+        const faces = await faceDetector.detect(video);
+        if (faces.length > 0) {
+          const box = faces[0].boundingBox;
+          const rawX = (box.x + box.width / 2) / video.videoWidth;
+          const rawY = (box.y + box.height / 2) / video.videoHeight;
+          faceX = 1 - rawX; // mirror
+          faceY = rawY;
+        }
+      } catch {
+        useFallback = true;
+      }
+    } else {
+      // Skin color fallback
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+      let sumX = 0, sumY = 0, count = 0;
+
+      for (let i = 0; i < d.length; i += 16) { // every 4th pixel
+        const r = d[i], g = d[i+1], b = d[i+2];
+        if (r > 95 && g > 40 && b > 20 && r > g && r > b && (r - g) > 15 && (r - b) > 15) {
+          const px = (i / 4) % canvas.width;
+          const py = Math.floor((i / 4) / canvas.width);
+          sumX += px;
+          sumY += py;
+          count++;
+        }
+      }
+
+      if (count > 20) {
+        const rawX = (sumX / count) / canvas.width;
+        const rawY = (sumY / count) / canvas.height;
+        faceX = 1 - rawX; // mirror
+        faceY = rawY;
+      }
+    }
+
+    // Update crosshair
+    crosshair.style.left = (faceX * window.innerWidth) + 'px';
+    crosshair.style.top = (faceY * window.innerHeight) + 'px';
+
+    trackingRAF = requestAnimationFrame(track);
+  }
+  track();
+}
+
+// Countdown
+function startCountdown() {
+  document.getElementById('menu-screen').style.display = 'none';
+  const cs = document.getElementById('countdown-screen');
+  const cn = document.getElementById('countdown-num');
+  cs.style.display = 'flex';
+
+  let c = 3;
+  cn.textContent = c;
+
+  const ci = setInterval(() => {
+    c--;
+    if (c > 0) {
+      cn.textContent = c;
+      cn.style.animation = 'none';
+      void cn.offsetWidth;
+      cn.style.animation = 'countPulse 0.8s ease-out';
+    } else {
+      clearInterval(ci);
+      cs.style.display = 'none';
+      startGame();
+    }
+  }, 900);
+}
+
+// Game
+function startGame() {
+  score = 0;
+  lives = 3;
+  combo = 0;
+  timeLeft = 30;
+  gunInterval = 2200;
+  gameActive = true;
+
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('score').textContent = '0';
+  document.getElementById('timer').textContent = '30';
+  document.getElementById('combo-display').style.opacity = '0';
+  for (let i = 0; i < 3; i++) document.getElementById('life' + i).classList.remove('lost');
+
+  // Timer
+  gameTimerInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('timer').textContent = timeLeft;
+    if (timeLeft <= 0) {
+      endGame(false);
+    }
+  }, 1000);
+
+  scheduleGun();
+}
+
+function scheduleGun() {
+  if (!gameActive) return;
+  gunTimer = setTimeout(() => {
+    spawnGun();
+  }, gunInterval);
+}
+
+function spawnGun() {
+  if (!gameActive) return;
+
+  currentGunSide = Math.random() < 0.5 ? 'left' : 'right';
+  const gunEl = document.getElementById('gun-' + currentGunSide);
+  gunEl.classList.add('active');
+
+  // Player must dodge to opposite side within 1.4s
+  const dodgeCheckInterval = setInterval(() => {
+    if (!gameActive) { clearInterval(dodgeCheckInterval); return; }
+
+    const dodged = checkDodge(currentGunSide);
+    if (dodged) {
+      clearInterval(dodgeCheckInterval);
+      clearTimeout(gunTimeout);
+      onDodge();
+    }
+  }, 50);
+
+  gunTimeout = setTimeout(() => {
+    clearInterval(dodgeCheckInterval);
+    if (!gameActive) return;
+    fireGun(currentGunSide);
+  }, 1400);
+}
+
+function checkDodge(gunSide) {
+  // Gun on left -> dodge right (faceX > 0.65)
+  // Gun on right -> dodge left (faceX < 0.35)
+  if (gunSide === 'left') return faceX > 0.65;
+  return faceX < 0.35;
+}
+
+function onDodge() {
+  combo++;
+  const pts = 10 * combo;
+  score += pts;
+  document.getElementById('score').textContent = score;
+
+  // Combo display
+  const cd = document.getElementById('combo-display');
+  if (combo > 1) {
+    cd.textContent = combo + 'x COMBO';
+    cd.style.opacity = '1';
+  }
+
+  // Floating text
+  showFloatingText('+' + pts, '#22c55e');
+
+  // Hide gun
+  hideGuns();
+
+  // Speed up
+  gunInterval = Math.max(800, gunInterval * 0.92);
+  scheduleGun();
+}
+
+function fireGun(side) {
+  if (!gameActive) return;
+
+  combo = 0;
+  document.getElementById('combo-display').style.opacity = '0';
+
+  // Muzzle flash
+  const flash = document.querySelector(side === 'left' ? '.left-flash' : '.right-flash');
+  flash.style.opacity = '1';
+  setTimeout(() => flash.style.opacity = '0', 120);
+
+  // Screen flash
+  const sf = document.getElementById('screen-flash');
+  sf.style.background = 'radial-gradient(circle at ' + (side === 'left' ? '0%' : '100%') + ' 50%, rgba(232,18,36,0.5), transparent 70%)';
+  sf.style.opacity = '1';
+  setTimeout(() => sf.style.opacity = '0', 200);
+
+  // Damage
+  const dmg = document.getElementById('damage-overlay');
+  dmg.style.opacity = '1';
+  setTimeout(() => dmg.style.opacity = '0', 500);
+
+  // Screen shake
+  document.getElementById('game-container').classList.add('shaking');
+  setTimeout(() => document.getElementById('game-container').classList.remove('shaking'), 500);
+
+  // Lose life
+  lives--;
+  document.getElementById('life' + lives).classList.add('lost');
+
+  showFloatingText('HIT!', '#e81224');
+
+  hideGuns();
+
+  if (lives <= 0) {
+    endGame(true);
+  } else {
+    scheduleGun();
+  }
+}
+
+function hideGuns() {
+  document.getElementById('gun-left').classList.remove('active');
+  document.getElementById('gun-right').classList.remove('active');
+  currentGunSide = null;
+}
+
+function showFloatingText(text, color) {
+  const el = document.createElement('div');
+  el.className = 'dodge-text';
+  el.textContent = text;
+  el.style.color = color;
+  el.style.textShadow = '0 0 15px ' + color;
+  document.getElementById('game-container').appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+function endGame(died) {
+  gameActive = false;
+  clearTimeout(gunTimer);
+  clearTimeout(gunTimeout);
+  clearInterval(gameTimerInterval);
+  hideGuns();
+
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('combo-display').style.opacity = '0';
+
+  // Best score
+  const best = Math.max(score, parseInt(localStorage.getItem('dodgeBest') || '0'));
+  localStorage.setItem('dodgeBest', best);
+
+  const go = document.getElementById('gameover-screen');
+  document.getElementById('gameover-title').textContent = died ? 'YOU DIED' : "TIME'S UP";
+  document.getElementById('gameover-sub').textContent = died ? 'You couldn\'t dodge fast enough.' : 'You survived!';
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('best-score').textContent = 'BEST: ' + best;
+  go.style.display = 'flex';
+}
+
+function restartGame() {
+  document.getElementById('gameover-screen').style.display = 'none';
+  startCountdown();
+}
+</script>
+</body>
+</html>
