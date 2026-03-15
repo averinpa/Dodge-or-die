@@ -7,12 +7,12 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;font-family:system-ui,-apple-system,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
-#game-container{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#game-container{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;transition:background 1s}
 
 /* Film grain overlay */
 #grain{position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:0.04}
 
-/* Camera preview - bottom center, 5x bigger */
+/* Camera preview - bottom center */
 #cam-preview{position:fixed;bottom:10px;left:50%;transform:translateX(-50%) scaleX(-1);width:35vw;height:auto;max-height:30vh;border-radius:12px;border:2px solid rgba(232,18,36,0.4);opacity:0.5;z-index:1;object-fit:cover}
 #cam-canvas{display:none}
 
@@ -27,20 +27,34 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
 .life-dot{width:14px;height:14px;border-radius:50%;background:#e81224;box-shadow:0 0 8px rgba(232,18,36,0.6);transition:all 0.3s}
 .life-dot.lost{background:#333;box-shadow:none}
 #combo-display{position:fixed;top:60px;left:50%;transform:translateX(-50%);font-size:1.1rem;font-weight:900;color:#ffd700;text-shadow:0 0 12px rgba(255,215,0,0.6);z-index:80;opacity:0;transition:opacity 0.3s}
+#round-display{position:fixed;top:36px;left:50%;transform:translateX(-50%);font-size:0.85rem;font-weight:700;color:#888;letter-spacing:3px;z-index:80}
 
 /* Cowboy container - center of screen */
 #cowboy{position:fixed;top:50%;left:50%;transform:translate(-50%,-55%);z-index:70;transition:all 0.15s;opacity:0}
 #cowboy.active{opacity:1}
-
-/* Cowboy shooting animations */
 @keyframes recoilLeft{0%{transform:translate(-50%,-55%) rotate(0deg)}30%{transform:translate(-50%,-55%) rotate(-3deg)}100%{transform:translate(-50%,-55%) rotate(0deg)}}
 @keyframes recoilRight{0%{transform:translate(-50%,-55%) rotate(0deg)}30%{transform:translate(-50%,-55%) rotate(3deg)}100%{transform:translate(-50%,-55%) rotate(0deg)}}
 #cowboy.shoot-left{animation:recoilLeft 0.3s ease-out}
 #cowboy.shoot-right{animation:recoilRight 0.3s ease-out}
-
-/* Cowboy idle bobbing */
 @keyframes cowboyIdle{0%,100%{transform:translate(-50%,-55%)}50%{transform:translate(-50%,-56%)}}
 #cowboy.idle{animation:cowboyIdle 2s ease-in-out infinite}
+
+/* Monster container */
+#monster{position:fixed;top:50%;left:50%;transform:translate(-50%,-55%);z-index:70;transition:all 0.15s;opacity:0}
+#monster.active{opacity:1}
+@keyframes monsterIdle{0%,100%{transform:translate(-50%,-55%)}50%{transform:translate(-50%,-57%) scale(1.02)}}
+#monster.idle{animation:monsterIdle 1.5s ease-in-out infinite}
+@keyframes monsterShootLeft{0%{transform:translate(-50%,-55%)}20%{transform:translate(-50%,-53%) rotate(-2deg)}100%{transform:translate(-50%,-55%)}}
+@keyframes monsterShootRight{0%{transform:translate(-50%,-55%)}20%{transform:translate(-50%,-53%) rotate(2deg)}100%{transform:translate(-50%,-55%)}}
+#monster.shoot-left{animation:monsterShootLeft 0.4s ease-out}
+#monster.shoot-right{animation:monsterShootRight 0.4s ease-out}
+
+/* Eye laser beams */
+.eye-laser{position:fixed;z-index:69;opacity:0;pointer-events:none;transition:opacity 0.05s}
+.eye-laser.left-laser{top:42%;left:0;width:42%;height:6px;background:linear-gradient(to left,#ff0000,#ff4400,transparent);box-shadow:0 0 20px #ff0000,0 0 40px #ff0000;border-radius:3px}
+.eye-laser.right-laser{top:42%;right:0;width:42%;height:6px;background:linear-gradient(to right,#ff0000,#ff4400,transparent);box-shadow:0 0 20px #ff0000,0 0 40px #ff0000;border-radius:3px}
+@keyframes laserPulse{0%{opacity:1;height:6px}50%{opacity:0.8;height:10px}100%{opacity:0}}
+.eye-laser.firing{animation:laserPulse 0.3s ease-out forwards}
 
 /* Muzzle flash */
 .muzzle-flash{position:absolute;z-index:71;opacity:0;pointer-events:none;transition:opacity 0.05s}
@@ -66,8 +80,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
 @keyframes shake{0%,100%{transform:translate(0)}10%{transform:translate(-8px,4px)}20%{transform:translate(6px,-6px)}30%{transform:translate(-4px,8px)}40%{transform:translate(8px,-4px)}50%{transform:translate(-6px,2px)}60%{transform:translate(4px,-8px)}70%{transform:translate(-2px,6px)}80%{transform:translate(6px,4px)}90%{transform:translate(-4px,-2px)}}
 .shaking{animation:shake 0.5s ease-in-out}
 
-/* Damage pulse */
-@keyframes damagePulse{0%{opacity:0.9}100%{opacity:0}}
+/* Round transition screen */
+#round-screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:195;background:rgba(10,10,11,0.95);text-align:center}
+#round-screen h1{font-size:3rem;font-weight:900;color:#e81224;text-shadow:0 0 40px rgba(232,18,36,0.6);margin-bottom:8px}
+#round-screen .round-sub{font-size:1.2rem;color:#ffd700;text-shadow:0 0 15px rgba(255,215,0,0.5);margin-bottom:16px;letter-spacing:3px}
+#round-screen .round-desc{font-size:0.9rem;color:#888;max-width:300px;line-height:1.5}
+@keyframes roundSlam{0%{transform:scale(3);opacity:0}40%{transform:scale(0.9);opacity:1}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+#round-screen h1{animation:roundSlam 0.8s ease-out}
 
 /* Menu screen */
 #menu-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;background:#0a0a0b;padding:20px;text-align:center}
@@ -122,136 +141,82 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
     </div>
     <div id="timer">30</div>
   </div>
+  <div id="round-display" style="display:none">ROUND 1</div>
   <div id="combo-display"></div>
 
-  <!-- Funny Cowboy -->
+  <!-- Funny Cowboy (Round 1) -->
   <div id="cowboy">
     <svg width="280" height="300" viewBox="0 0 280 300" xmlns="http://www.w3.org/2000/svg">
-      <!-- Left gun with hand -->
       <g id="left-arm">
-        <!-- Arm -->
         <rect x="30" y="140" width="60" height="14" rx="7" fill="#c8956c" transform="rotate(-5, 60, 147)"/>
-        <!-- Hand -->
         <circle cx="28" cy="142" r="10" fill="#dba67a"/>
-        <!-- Fingers on gun -->
         <rect x="18" y="136" width="8" height="5" rx="2" fill="#dba67a"/>
-        <!-- Gun -->
         <rect x="-10" y="132" width="40" height="10" rx="2" fill="#555"/>
         <rect x="-18" y="130" width="12" height="14" rx="1" fill="#666"/>
         <rect x="18" y="140" width="14" height="22" rx="2" fill="#444"/>
         <rect x="20" y="142" width="10" height="16" rx="2" fill="#3a3a3a"/>
-        <!-- Muzzle -->
         <rect x="-22" y="134" width="6" height="6" rx="1" fill="#777"/>
       </g>
-
-      <!-- Right gun with hand -->
       <g id="right-arm">
-        <!-- Arm -->
         <rect x="190" y="140" width="60" height="14" rx="7" fill="#c8956c" transform="rotate(5, 220, 147)"/>
-        <!-- Hand -->
         <circle cx="252" cy="142" r="10" fill="#dba67a"/>
-        <!-- Fingers on gun -->
         <rect x="254" y="136" width="8" height="5" rx="2" fill="#dba67a"/>
-        <!-- Gun -->
         <rect x="250" y="132" width="40" height="10" rx="2" fill="#555"/>
         <rect x="286" y="130" width="12" height="14" rx="1" fill="#666"/>
         <rect x="248" y="140" width="14" height="22" rx="2" fill="#444"/>
         <rect x="250" y="142" width="10" height="16" rx="2" fill="#3a3a3a"/>
-        <!-- Muzzle -->
         <rect x="296" y="134" width="6" height="6" rx="1" fill="#777"/>
       </g>
-
-      <!-- Body / Vest -->
       <rect x="105" y="150" width="70" height="80" rx="8" fill="#8B4513"/>
       <rect x="110" y="155" width="28" height="70" rx="3" fill="#6B3410"/>
       <rect x="142" y="155" width="28" height="70" rx="3" fill="#6B3410"/>
-      <!-- Belt -->
       <rect x="100" y="220" width="80" height="12" rx="2" fill="#3a2a1a"/>
-      <!-- Belt buckle - big star -->
       <polygon points="140,222 143,228 150,228 145,232 147,239 140,235 133,239 135,232 130,228 137,228" fill="#ffd700" stroke="#daa520" stroke-width="0.5"/>
-
-      <!-- Shirt under vest -->
       <rect x="120" y="152" width="40" height="70" rx="2" fill="#e8d4b8"/>
-      <!-- Shirt buttons -->
       <circle cx="140" cy="170" r="2" fill="#888"/>
       <circle cx="140" cy="185" r="2" fill="#888"/>
       <circle cx="140" cy="200" r="2" fill="#888"/>
-
-      <!-- Bandana/Neckerchief -->
       <polygon points="120,148 160,148 150,168 140,172 130,168" fill="#e81224"/>
       <polygon points="135,162 145,162 140,178" fill="#c41020" opacity="0.7"/>
-
-      <!-- Neck -->
       <rect x="130" y="130" width="20" height="22" rx="4" fill="#dba67a"/>
-
-      <!-- Head -->
       <ellipse cx="140" cy="110" rx="35" ry="38" fill="#dba67a"/>
-
-      <!-- Goofy eyes - big and cartoonish -->
       <ellipse cx="127" cy="105" rx="10" ry="12" fill="white"/>
       <ellipse cx="153" cy="105" rx="10" ry="12" fill="white"/>
-      <!-- Pupils - looking slightly cross-eyed for comedy -->
       <circle cx="130" cy="106" r="5" fill="#2a1a0a"/>
       <circle cx="150" cy="106" r="5" fill="#2a1a0a"/>
-      <!-- Eye shine -->
       <circle cx="132" cy="103" r="2" fill="white"/>
       <circle cx="152" cy="103" r="2" fill="white"/>
-      <!-- Eyebrows - one raised for funny expression -->
       <path d="M117 90 Q127 84 137 90" stroke="#5a3a1a" stroke-width="3" fill="none"/>
       <path d="M143 86 Q153 80 163 88" stroke="#5a3a1a" stroke-width="3" fill="none"/>
-
-      <!-- Big goofy mustache -->
       <path d="M125 118 Q130 124 140 120 Q150 124 155 118" stroke="#4a2a0a" stroke-width="3" fill="#4a2a0a"/>
       <ellipse cx="128" cy="119" rx="6" ry="3" fill="#4a2a0a"/>
       <ellipse cx="152" cy="119" rx="6" ry="3" fill="#4a2a0a"/>
-
-      <!-- Big silly grin -->
       <path d="M125 126 Q140 140 155 126" stroke="#8a3a1a" stroke-width="2" fill="none"/>
-      <!-- Teeth showing -->
       <rect x="133" y="127" width="6" height="5" rx="1" fill="white"/>
       <rect x="140" y="127" width="6" height="5" rx="1" fill="white"/>
-
-      <!-- Nose - round and bulbous -->
       <ellipse cx="140" cy="114" rx="5" ry="4" fill="#c8956c"/>
-
-      <!-- Ears sticking out -->
       <ellipse cx="104" cy="108" rx="7" ry="10" fill="#dba67a"/>
       <ellipse cx="104" cy="108" rx="4" ry="6" fill="#c8956c"/>
       <ellipse cx="176" cy="108" rx="7" ry="10" fill="#dba67a"/>
       <ellipse cx="176" cy="108" rx="4" ry="6" fill="#c8956c"/>
-
-      <!-- Big cowboy hat -->
-      <!-- Hat brim -->
       <ellipse cx="140" cy="78" rx="55" ry="10" fill="#5c3a1a"/>
       <ellipse cx="140" cy="77" rx="55" ry="8" fill="#7a4a2a"/>
-      <!-- Hat crown -->
       <rect x="110" y="40" width="60" height="38" rx="8" fill="#7a4a2a"/>
       <path d="M110 60 Q140 50 170 60" fill="#6a3a1a"/>
-      <!-- Hat top dent -->
       <path d="M115 42 Q140 52 165 42" fill="#8a5a3a"/>
-      <!-- Hat band -->
       <rect x="112" y="70" width="56" height="6" rx="1" fill="#e81224"/>
-      <!-- Star on hat band -->
       <polygon points="140,70 142,74 146,74 143,77 144,81 140,78 136,81 137,77 134,74 138,74" fill="#ffd700"/>
-
-      <!-- Legs -->
       <rect x="112" y="230" width="24" height="50" rx="4" fill="#4a6fa5"/>
       <rect x="144" y="230" width="24" height="50" rx="4" fill="#4a6fa5"/>
-
-      <!-- Boots -->
       <path d="M108 275 L108 290 Q108 295 113 295 L140 295 Q142 295 142 290 L142 275 Z" fill="#5c3a1a"/>
       <path d="M138 275 L138 290 Q138 295 143 295 L172 295 Q174 295 174 290 L174 275 Z" fill="#5c3a1a"/>
-      <!-- Boot heels -->
       <rect x="108" y="288" width="8" height="7" rx="1" fill="#4a2a0a"/>
       <rect x="164" y="288" width="8" height="7" rx="1" fill="#4a2a0a"/>
-      <!-- Spurs! -->
       <circle cx="108" cy="285" r="3" fill="#ffd700" stroke="#daa520" stroke-width="0.5"/>
       <line x1="105" y1="285" x2="100" y2="285" stroke="#daa520" stroke-width="1.5"/>
       <circle cx="174" cy="285" r="3" fill="#ffd700" stroke="#daa520" stroke-width="0.5"/>
       <line x1="177" y1="285" x2="182" y2="285" stroke="#daa520" stroke-width="1.5"/>
     </svg>
-
-    <!-- Muzzle flashes inside cowboy container -->
     <svg class="muzzle-flash left-flash" width="50" height="50" viewBox="0 0 80 80">
       <circle cx="40" cy="40" r="35" fill="#e81224" opacity="0.7"/>
       <circle cx="40" cy="40" r="22" fill="#ff6600" opacity="0.8"/>
@@ -263,6 +228,131 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
       <circle cx="40" cy="40" r="10" fill="#fff" opacity="0.9"/>
     </svg>
   </div>
+
+  <!-- Monster (Round 2) -->
+  <div id="monster">
+    <svg width="320" height="340" viewBox="0 0 320 340" xmlns="http://www.w3.org/2000/svg">
+      <!-- Legs - thick and stumpy -->
+      <rect x="100" y="260" width="40" height="60" rx="8" fill="#2a5a2a"/>
+      <rect x="180" y="260" width="40" height="60" rx="8" fill="#2a5a2a"/>
+      <!-- Feet with claws -->
+      <ellipse cx="120" cy="318" rx="28" ry="10" fill="#1a4a1a"/>
+      <ellipse cx="200" cy="318" rx="28" ry="10" fill="#1a4a1a"/>
+      <!-- Toe claws -->
+      <polygon points="95,314 88,308 96,312" fill="#aaa"/>
+      <polygon points="108,316 102,308 110,314" fill="#aaa"/>
+      <polygon points="132,316 128,308 134,314" fill="#aaa"/>
+      <polygon points="175,316 170,308 177,314" fill="#aaa"/>
+      <polygon points="188,314 182,308 190,312" fill="#aaa"/>
+      <polygon points="212,316 208,308 214,314" fill="#aaa"/>
+      <polygon points="225,314 232,308 224,312" fill="#aaa"/>
+
+      <!-- Body - big round belly -->
+      <ellipse cx="160" cy="210" rx="75" ry="70" fill="#2d6b2d"/>
+      <!-- Belly scales/pattern -->
+      <ellipse cx="160" cy="220" rx="50" ry="50" fill="#3a8a3a" opacity="0.5"/>
+      <ellipse cx="160" cy="230" rx="35" ry="35" fill="#4a9a4a" opacity="0.3"/>
+      <!-- Bumps/warts -->
+      <circle cx="100" cy="195" r="6" fill="#1a5a1a"/>
+      <circle cx="215" cy="200" r="5" fill="#1a5a1a"/>
+      <circle cx="120" cy="240" r="4" fill="#1a5a1a"/>
+      <circle cx="195" cy="245" r="4" fill="#1a5a1a"/>
+
+      <!-- Arms - muscular -->
+      <rect x="60" y="170" width="30" height="55" rx="12" fill="#2a5a2a" transform="rotate(-15,75,197)"/>
+      <rect x="230" y="170" width="30" height="55" rx="12" fill="#2a5a2a" transform="rotate(15,245,197)"/>
+      <!-- Clawed hands -->
+      <circle cx="55" cy="225" r="14" fill="#2d6b2d"/>
+      <polygon points="42,220 32,214 44,218" fill="#aaa"/>
+      <polygon points="44,228 34,228 44,225" fill="#aaa"/>
+      <polygon points="46,234 38,240 48,232" fill="#aaa"/>
+      <circle cx="265" cy="225" r="14" fill="#2d6b2d"/>
+      <polygon points="278,220 288,214 276,218" fill="#aaa"/>
+      <polygon points="276,228 286,228 276,225" fill="#aaa"/>
+      <polygon points="274,234 282,240 272,232" fill="#aaa"/>
+
+      <!-- Neck -->
+      <rect x="135" y="130" width="50" height="30" rx="10" fill="#2a5a2a"/>
+
+      <!-- Head -->
+      <ellipse cx="160" cy="105" rx="55" ry="50" fill="#2d6b2d"/>
+
+      <!-- Horns -->
+      <polygon points="115,70 100,20 125,65" fill="#5a3a1a"/>
+      <polygon points="205,70 220,20 195,65" fill="#5a3a1a"/>
+      <!-- Horn ridges -->
+      <line x1="108" y1="45" x2="120" y2="55" stroke="#4a2a0a" stroke-width="2"/>
+      <line x1="105" y1="35" x2="118" y2="48" stroke="#4a2a0a" stroke-width="2"/>
+      <line x1="212" y1="45" x2="200" y2="55" stroke="#4a2a0a" stroke-width="2"/>
+      <line x1="215" y1="35" x2="202" y2="48" stroke="#4a2a0a" stroke-width="2"/>
+
+      <!-- Brow ridge -->
+      <path d="M110 88 Q135 78 160 85 Q185 78 210 88" fill="#1a4a1a"/>
+
+      <!-- Eyes - GLOWING RED -->
+      <g id="monster-eyes">
+        <!-- Eye sockets -->
+        <ellipse cx="135" cy="95" rx="18" ry="16" fill="#0a0a0a"/>
+        <ellipse cx="185" cy="95" rx="18" ry="16" fill="#0a0a0a"/>
+        <!-- Glowing red irises -->
+        <ellipse cx="135" cy="95" rx="14" ry="12" fill="#cc0000">
+          <animate attributeName="fill" values="#cc0000;#ff2200;#cc0000" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="185" cy="95" rx="14" ry="12" fill="#cc0000">
+          <animate attributeName="fill" values="#cc0000;#ff2200;#cc0000" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- Slit pupils -->
+        <ellipse cx="135" cy="95" rx="4" ry="11" fill="#1a0000"/>
+        <ellipse cx="185" cy="95" rx="4" ry="11" fill="#1a0000"/>
+        <!-- Eye glow effect -->
+        <ellipse cx="135" cy="95" rx="18" ry="16" fill="none" stroke="#ff0000" stroke-width="2" opacity="0.5">
+          <animate attributeName="opacity" values="0.3;0.7;0.3" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="185" cy="95" rx="18" ry="16" fill="none" stroke="#ff0000" stroke-width="2" opacity="0.5">
+          <animate attributeName="opacity" values="0.3;0.7;0.3" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+      </g>
+
+      <!-- Snout/Nose -->
+      <ellipse cx="160" cy="115" rx="15" ry="8" fill="#1a4a1a"/>
+      <!-- Nostrils with smoke -->
+      <ellipse cx="153" cy="115" rx="4" ry="3" fill="#0a2a0a"/>
+      <ellipse cx="167" cy="115" rx="4" ry="3" fill="#0a2a0a"/>
+
+      <!-- Big scary mouth with teeth -->
+      <path d="M120 125 Q160 150 200 125" fill="#1a0a0a" stroke="#0a3a0a" stroke-width="2"/>
+      <!-- Top teeth - jagged -->
+      <polygon points="125,125 130,138 135,125" fill="#e8e8d0"/>
+      <polygon points="140,125 144,140 148,125" fill="#e8e8d0"/>
+      <polygon points="155,126 160,142 165,126" fill="#e8e8d0"/>
+      <polygon points="170,125 174,140 178,125" fill="#e8e8d0"/>
+      <polygon points="183,125 187,136 191,125" fill="#e8e8d0"/>
+      <!-- Bottom teeth -->
+      <polygon points="132,142 136,130 140,142" fill="#d8d8c0"/>
+      <polygon points="148,144 152,132 156,144" fill="#d8d8c0"/>
+      <polygon points="164,144 168,132 172,144" fill="#d8d8c0"/>
+      <polygon points="178,142 182,130 186,142" fill="#d8d8c0"/>
+      <!-- Drool -->
+      <path d="M145 144 Q144 158 146 165" stroke="#6a9a6a" stroke-width="2" fill="none" opacity="0.5">
+        <animate attributeName="d" values="M145 144 Q144 158 146 165;M145 144 Q143 160 147 170;M145 144 Q144 158 146 165" dur="2s" repeatCount="indefinite"/>
+      </path>
+
+      <!-- Spikes on head -->
+      <polygon points="130,58 126,40 135,55" fill="#2d6b2d"/>
+      <polygon points="155,55 153,35 160,52" fill="#2d6b2d"/>
+      <polygon points="165,55 167,35 170,52" fill="#2d6b2d"/>
+      <polygon points="190,58 194,40 185,55" fill="#2d6b2d"/>
+
+      <!-- Tail peeking from behind -->
+      <path d="M85 240 Q50 250 40 230 Q30 210 45 200" stroke="#2a5a2a" stroke-width="12" fill="none" stroke-linecap="round"/>
+      <!-- Tail spike -->
+      <polygon points="45,195 35,185 50,190 55,180 48,198" fill="#2d6b2d"/>
+    </svg>
+  </div>
+
+  <!-- Eye laser beams -->
+  <div class="eye-laser left-laser" id="laser-left"></div>
+  <div class="eye-laser right-laser" id="laser-right"></div>
 
   <!-- Gun aim direction indicator -->
   <div id="gun-aim-indicator"></div>
@@ -276,10 +366,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0b;color:#fff;f
   <div id="menu-screen">
     <h1>DODGE OR DIE</h1>
     <h2>REFLEX GAME</h2>
-    <p>Use your front camera to dodge incoming gunfire. Move your head left or right to survive!</p>
+    <p>Use your front camera to dodge incoming gunfire. Move your head left or right to survive! Score 500 to face the monster!</p>
     <button class="menu-btn" id="btn-camera" onclick="enableCamera()">ENABLE CAMERA</button>
     <button class="menu-btn" id="btn-start" onclick="startCountdown()" style="display:none">START GAME</button>
     <div id="camera-status"></div>
+  </div>
+
+  <!-- Round transition -->
+  <div id="round-screen">
+    <h1 id="round-title">ROUND 2</h1>
+    <div class="round-sub" id="round-subtitle">THE MONSTER AWAKENS</div>
+    <div class="round-desc" id="round-desc">Dodge the eye blasters! The monster is faster and angrier!</div>
   </div>
 
   <!-- Countdown -->
@@ -309,15 +406,18 @@ let trackingRAF = null;
 let score = 0, lives = 3, combo = 0, timeLeft = 30;
 let gunInterval = 2200;
 let gunTimer = null, gameTimerInterval = null;
-let currentGunSide = null; // 'left' or 'right'
+let currentGunSide = null;
 let gunTimeout = null;
 let gameActive = false;
+let currentRound = 1;
+const ROUND2_THRESHOLD = 500;
 
 const video = document.getElementById('cam-preview');
 const canvas = document.getElementById('cam-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const crosshair = document.getElementById('crosshair');
 const cowboy = document.getElementById('cowboy');
+const monster = document.getElementById('monster');
 
 // Film grain
 (function initGrain() {
@@ -351,11 +451,10 @@ async function enableCamera() {
     video.srcObject = stream;
     await video.play();
 
-    // Try native FaceDetector
     if ('FaceDetector' in window) {
       try {
         faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
-        await faceDetector.detect(video); // test it
+        await faceDetector.detect(video);
         useFallback = false;
         status.textContent = 'Camera ready (native face detection)';
       } catch {
@@ -389,20 +488,19 @@ function startTracking() {
           const box = faces[0].boundingBox;
           const rawX = (box.x + box.width / 2) / video.videoWidth;
           const rawY = (box.y + box.height / 2) / video.videoHeight;
-          faceX = 1 - rawX; // mirror
+          faceX = 1 - rawX;
           faceY = rawY;
         }
       } catch {
         useFallback = true;
       }
     } else {
-      // Skin color fallback
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = imgData.data;
       let sumX = 0, sumY = 0, count = 0;
 
-      for (let i = 0; i < d.length; i += 16) { // every 4th pixel
+      for (let i = 0; i < d.length; i += 16) {
         const r = d[i], g = d[i+1], b = d[i+2];
         if (r > 95 && g > 40 && b > 20 && r > g && r > b && (r - g) > 15 && (r - b) > 15) {
           const px = (i / 4) % canvas.width;
@@ -416,16 +514,14 @@ function startTracking() {
       if (count > 20) {
         const rawX = (sumX / count) / canvas.width;
         const rawY = (sumY / count) / canvas.height;
-        faceX = 1 - rawX; // mirror
+        faceX = 1 - rawX;
         faceY = rawY;
       }
     }
 
-    // Amplify movement from center (1.8x)
     faceX = Math.max(0, Math.min(1, 0.5 + (faceX - 0.5) * 1.8));
     faceY = Math.max(0, Math.min(1, 0.5 + (faceY - 0.5) * 1.8));
 
-    // Update crosshair
     crosshair.style.left = (faceX * window.innerWidth) + 'px';
     crosshair.style.top = (faceY * window.innerHeight) + 'px';
 
@@ -459,6 +555,36 @@ function startCountdown() {
   }, 900);
 }
 
+function showRoundTransition(roundNum, callback) {
+  const rs = document.getElementById('round-screen');
+  const title = document.getElementById('round-title');
+  const subtitle = document.getElementById('round-subtitle');
+  const desc = document.getElementById('round-desc');
+
+  if (roundNum === 1) {
+    title.textContent = 'ROUND 1';
+    subtitle.textContent = 'THE COWBOY';
+    desc.textContent = 'Dodge the cowboy\'s bullets! Score 500 to face the monster!';
+  } else {
+    title.textContent = 'ROUND 2';
+    title.style.color = '#00ff44';
+    title.style.textShadow = '0 0 40px rgba(0,255,68,0.6)';
+    subtitle.textContent = 'THE MONSTER AWAKENS';
+    subtitle.style.color = '#ff4444';
+    desc.textContent = 'Dodge the eye blasters! The monster is faster and angrier!';
+  }
+
+  rs.style.display = 'flex';
+  title.style.animation = 'none';
+  void title.offsetWidth;
+  title.style.animation = 'roundSlam 0.8s ease-out';
+
+  setTimeout(() => {
+    rs.style.display = 'none';
+    callback();
+  }, 2500);
+}
+
 // Game
 function startGame() {
   score = 0;
@@ -466,16 +592,42 @@ function startGame() {
   combo = 0;
   timeLeft = 30;
   gunInterval = 2200;
+  gameActive = false;
+  currentRound = 1;
+
+  // Show round 1 transition first
+  showRoundTransition(1, () => {
+    beginRound();
+  });
+}
+
+function beginRound() {
   gameActive = true;
 
   document.getElementById('hud').style.display = 'flex';
-  document.getElementById('score').textContent = '0';
-  document.getElementById('timer').textContent = '30';
+  document.getElementById('score').textContent = score;
+  document.getElementById('timer').textContent = timeLeft;
   document.getElementById('combo-display').style.opacity = '0';
   for (let i = 0; i < 3; i++) document.getElementById('life' + i).classList.remove('lost');
 
-  // Show cowboy with idle animation
-  cowboy.classList.add('active', 'idle');
+  // Update round display
+  const rd = document.getElementById('round-display');
+  rd.style.display = 'block';
+  rd.textContent = 'ROUND ' + currentRound;
+
+  if (currentRound === 1) {
+    document.getElementById('game-container').style.background = '';
+    cowboy.classList.add('active', 'idle');
+    monster.classList.remove('active', 'idle');
+    document.getElementById('cam-preview').style.borderColor = 'rgba(232,18,36,0.4)';
+  } else {
+    // Round 2 - darker, green-tinted atmosphere
+    document.getElementById('game-container').style.background = 'radial-gradient(ellipse at center, #0a1a0a 0%, #050a05 100%)';
+    cowboy.classList.remove('active', 'idle');
+    monster.classList.add('active', 'idle');
+    document.getElementById('cam-preview').style.borderColor = 'rgba(0,255,68,0.4)';
+    gunInterval = 1800; // Monster is faster
+  }
 
   // Timer
   gameTimerInterval = setInterval(() => {
@@ -507,13 +659,17 @@ function spawnGun() {
   indicator.textContent = currentGunSide === 'left' ? '<<< DODGE RIGHT >>>' : '<<< DODGE LEFT >>>';
   indicator.style.opacity = '1';
 
-  // Cowboy stops idle, aims that direction
-  cowboy.classList.remove('idle');
+  if (currentRound === 1) {
+    cowboy.classList.remove('idle');
+  } else {
+    monster.classList.remove('idle');
+    // Monster eyes glow brighter when aiming
+    const eyes = document.getElementById('monster-eyes');
+    if (eyes) eyes.style.filter = 'brightness(2) drop-shadow(0 0 10px #ff0000)';
+  }
 
-  // Player must dodge to opposite side within 1.4s
   const dodgeCheckInterval = setInterval(() => {
     if (!gameActive) { clearInterval(dodgeCheckInterval); return; }
-
     const dodged = checkDodge(currentGunSide);
     if (dodged) {
       clearInterval(dodgeCheckInterval);
@@ -526,38 +682,58 @@ function spawnGun() {
     clearInterval(dodgeCheckInterval);
     if (!gameActive) return;
     fireGun(currentGunSide);
-  }, 1400);
+  }, currentRound === 1 ? 1400 : 1100); // Monster shoots faster
 }
 
 function checkDodge(gunSide) {
-  // Gun on left -> dodge right (faceX > 0.58)
-  // Gun on right -> dodge left (faceX < 0.42)
   if (gunSide === 'left') return faceX > 0.58;
   return faceX < 0.42;
 }
 
 function onDodge() {
   combo++;
-  const pts = 10 * combo;
+  const pts = (currentRound === 1 ? 10 : 20) * combo;
   score += pts;
   document.getElementById('score').textContent = score;
 
-  // Combo display
   const cd = document.getElementById('combo-display');
   if (combo > 1) {
     cd.textContent = combo + 'x COMBO';
     cd.style.opacity = '1';
   }
 
-  // Floating text
   showFloatingText('+' + pts, '#22c55e');
+  hideAim();
 
-  // Hide aim indicator and reset cowboy
-  hideCowboyAim();
+  // Check if player reached round 2 threshold
+  if (currentRound === 1 && score >= ROUND2_THRESHOLD) {
+    transitionToRound2();
+    return;
+  }
 
-  // Speed up
-  gunInterval = Math.max(800, gunInterval * 0.92);
+  gunInterval = Math.max(currentRound === 1 ? 800 : 600, gunInterval * 0.92);
   scheduleGun();
+}
+
+function transitionToRound2() {
+  gameActive = false;
+  clearTimeout(gunTimer);
+  clearTimeout(gunTimeout);
+  clearInterval(gameTimerInterval);
+  hideAim();
+
+  currentRound = 2;
+  lives = 3; // Reset lives for round 2
+  timeLeft = 30; // Reset timer
+  combo = 0;
+
+  showFloatingText('ROUND 2!', '#00ff44');
+
+  setTimeout(() => {
+    showRoundTransition(2, () => {
+      beginRound();
+    });
+  }, 500);
 }
 
 function fireGun(side) {
@@ -566,19 +742,40 @@ function fireGun(side) {
   combo = 0;
   document.getElementById('combo-display').style.opacity = '0';
 
-  // Cowboy shoot animation
-  cowboy.classList.remove('shoot-left', 'shoot-right');
-  void cowboy.offsetWidth;
-  cowboy.classList.add('shoot-' + side);
+  if (currentRound === 1) {
+    // Cowboy shoot animation
+    cowboy.classList.remove('shoot-left', 'shoot-right');
+    void cowboy.offsetWidth;
+    cowboy.classList.add('shoot-' + side);
 
-  // Muzzle flash
-  const flash = document.querySelector(side === 'left' ? '.left-flash' : '.right-flash');
-  flash.style.opacity = '1';
-  setTimeout(() => flash.style.opacity = '0', 120);
+    // Muzzle flash
+    const flash = document.querySelector(side === 'left' ? '.left-flash' : '.right-flash');
+    flash.style.opacity = '1';
+    setTimeout(() => flash.style.opacity = '0', 120);
+  } else {
+    // Monster eye laser!
+    monster.classList.remove('shoot-left', 'shoot-right');
+    void monster.offsetWidth;
+    monster.classList.add('shoot-' + side);
+
+    const laser = document.getElementById('laser-' + side);
+    laser.classList.remove('firing');
+    void laser.offsetWidth;
+    laser.style.opacity = '1';
+    laser.classList.add('firing');
+    setTimeout(() => {
+      laser.style.opacity = '0';
+      laser.classList.remove('firing');
+    }, 300);
+  }
 
   // Screen flash
   const sf = document.getElementById('screen-flash');
-  sf.style.background = 'radial-gradient(circle at 50% 50%, rgba(232,18,36,0.5), transparent 70%)';
+  if (currentRound === 2) {
+    sf.style.background = 'radial-gradient(circle at 50% 40%, rgba(255,0,0,0.6), transparent 70%)';
+  } else {
+    sf.style.background = 'radial-gradient(circle at 50% 50%, rgba(232,18,36,0.5), transparent 70%)';
+  }
   sf.style.opacity = '1';
   setTimeout(() => sf.style.opacity = '0', 200);
 
@@ -591,13 +788,10 @@ function fireGun(side) {
   document.getElementById('game-container').classList.add('shaking');
   setTimeout(() => document.getElementById('game-container').classList.remove('shaking'), 500);
 
-  // Lose life
   lives--;
   document.getElementById('life' + lives).classList.add('lost');
-
-  showFloatingText('HIT!', '#e81224');
-
-  hideCowboyAim();
+  showFloatingText(currentRound === 2 ? 'BLASTED!' : 'HIT!', '#e81224');
+  hideAim();
 
   if (lives <= 0) {
     endGame(true);
@@ -606,9 +800,15 @@ function fireGun(side) {
   }
 }
 
-function hideCowboyAim() {
+function hideAim() {
   document.getElementById('gun-aim-indicator').style.opacity = '0';
-  cowboy.classList.add('idle');
+  if (currentRound === 1) {
+    cowboy.classList.add('idle');
+  } else {
+    monster.classList.add('idle');
+    const eyes = document.getElementById('monster-eyes');
+    if (eyes) eyes.style.filter = '';
+  }
   currentGunSide = null;
 }
 
@@ -627,19 +827,30 @@ function endGame(died) {
   clearTimeout(gunTimer);
   clearTimeout(gunTimeout);
   clearInterval(gameTimerInterval);
-  hideCowboyAim();
+  hideAim();
   cowboy.classList.remove('active', 'idle');
+  monster.classList.remove('active', 'idle');
 
   document.getElementById('hud').style.display = 'none';
+  document.getElementById('round-display').style.display = 'none';
   document.getElementById('combo-display').style.opacity = '0';
+  document.getElementById('game-container').style.background = '';
 
-  // Best score
   const best = Math.max(score, parseInt(localStorage.getItem('dodgeBest') || '0'));
   localStorage.setItem('dodgeBest', best);
 
   const go = document.getElementById('gameover-screen');
-  document.getElementById('gameover-title').textContent = died ? 'YOU DIED' : "TIME'S UP";
-  document.getElementById('gameover-sub').textContent = died ? 'You couldn\'t dodge fast enough.' : 'You survived!';
+  if (died) {
+    document.getElementById('gameover-title').textContent = currentRound === 2 ? 'DEVOURED!' : 'YOU DIED';
+    document.getElementById('gameover-sub').textContent = currentRound === 2
+      ? 'The monster\'s eye blasters were too powerful!'
+      : 'You couldn\'t dodge fast enough.';
+  } else {
+    document.getElementById('gameover-title').textContent = "TIME'S UP";
+    document.getElementById('gameover-sub').textContent = currentRound === 2
+      ? 'You survived the monster!'
+      : 'You survived the cowboy!';
+  }
   document.getElementById('final-score').textContent = score;
   document.getElementById('best-score').textContent = 'BEST: ' + best;
   go.style.display = 'flex';
