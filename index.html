@@ -302,6 +302,10 @@ function startTracking() {
       }
     }
 
+    // Amplify movement from center (1.8x)
+    faceX = Math.max(0, Math.min(1, 0.5 + (faceX - 0.5) * 1.8));
+    faceY = Math.max(0, Math.min(1, 0.5 + (faceY - 0.5) * 1.8));
+
     // Update crosshair
     crosshair.style.left = (faceX * window.innerWidth) + 'px';
     crosshair.style.top = (faceY * window.innerHeight) + 'px';
